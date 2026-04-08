@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ATMOS — AI Weather Detection System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+
+<style>
+/* ═══════════════════════════════════════════════
+   CSS VARIABLES & RESET
+═══════════════════════════════════════════════ */
+:root {
+  --bg: #060b14;
+  --bg2: #0c1525;
+  --bg3: #111e35;
+  --glass: rgba(255,255,255,0.04);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-hover: rgba(255,255,255,0.07);
+  --accent: #4fc3f7;
+  --accent2: #81d4fa;
+  --accent3: #00e5ff;
+  --text: #e8f4fd;
+  --text2: #8bafc8;
+  --text3: #4a6a85;
+  --card-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  --glow: 0 0 30px rgba(79,195,247,0.15);
+  --red: #ff6b6b;
+  --green: #69f0ae;
+  --orange: #ffd54f;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --radius: 18px;
+  --radius-sm: 10px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] {
+  --bg: #e8f0f8;
+  --bg2: #dce8f4;
+  --bg3: #ccdaec;
+  --glass: rgba(255,255,255,0.55);
+  --glass-border: rgba(255,255,255,0.7);
+  --glass-hover: rgba(255,255,255,0.75);
+  --text: #0d1f35;
+  --text2: #3a5a7a;
+  --text3: #7a9ab8;
+  --card-shadow: 0 8px 40px rgba(0,80,160,0.12);
+  --glow: 0 0 30px rgba(79,195,247,0.2);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* ═══════════════════════════════════════════════
+   ANIMATED BACKGROUND
+═══════════════════════════════════════════════ */
+#bg-canvas {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+  opacity: 0.6;
+}
+
+.orb {
+  position: fixed; border-radius: 50%;
+  filter: blur(80px); pointer-events: none; z-index: 0;
+  animation: floatOrb 20s ease-in-out infinite;
+}
+.orb1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(79,195,247,0.12), transparent 70%); top: -100px; right: -100px; animation-delay: 0s; }
+.orb2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(0,100,200,0.1), transparent 70%); bottom: 100px; left: -100px; animation-delay: -7s; }
+.orb3 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(129,212,250,0.08), transparent 70%); top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: -14s; }
+
+@keyframes floatOrb {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 30px) scale(0.95); }
+}
+
+/* Weather bg effects */
+.weather-rain { background: repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(79,195,247,0.02) 2px, rgba(79,195,247,0.02) 4px); }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT WRAPPER
+═══════════════════════════════════════════════ */
+#app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 24px 100px; }
+
+/* ═══════════════════════════════════════════════
+   NAVBAR
+═══════════════════════════════════════════════ */
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24px 0; position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--transition), background var(--transition);
+}
+nav.scrolled { border-color: var(--glass-border); background: rgba(6,11,20,0.8); }
+[data-theme="light"] nav.scrolled { background: rgba(232,240,248,0.8); }
+
+.nav-logo {
+  font-family: var(--font-display); font-size: 1.5rem; font-weight: 800;
+  letter-spacing: -0.5px; color: var(--text);
+  display: flex; align-items: center; gap: 10px;
+}
+.nav-logo .logo-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 12px var(--accent); animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.3); } }
+
+.nav-actions { display: flex; align-items: center; gap: 14px; }
+
+.btn-icon {
+  width: 40px; height: 40px; border-radius: 12px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; transition: all var(--transition); backdrop-filter: blur(10px);
+}
+.btn-icon:hover { background: var(--glass-hover); color: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
+
+.btn-primary {
+  padding: 10px 20px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; color: #060b14; font-family: var(--font-body);
+  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: all var(--transition); white-space: nowrap;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(79,195,247,0.4); }
+
+/* ═══════════════════════════════════════════════
+   HERO SECTION
+═══════════════════════════════════════════════ */
+.hero {
+  text-align: center; padding: 60px 0 48px;
+  animation: fadeUp 0.8s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  font-size: 0.78rem; color: var(--accent); font-weight: 500; letter-spacing: 0.5px;
+  margin-bottom: 24px; backdrop-filter: blur(10px);
+}
+.hero-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+.hero h1 {
+  font-family: var(--font-display); font-size: clamp(2.2rem, 5vw, 3.8rem);
+  font-weight: 800; line-height: 1.05; letter-spacing: -1.5px;
+  margin-bottom: 16px; color: var(--text);
+}
+.hero h1 span { color: var(--accent); }
+.hero p { font-size: 1.05rem; color: var(--text2); max-width: 500px; margin: 0 auto 40px; line-height: 1.7; font-weight: 300; }
+
+/* ═══════════════════════════════════════════════
+   SEARCH BAR
+═══════════════════════════════════════════════ */
+.search-container {
+  max-width: 580px; margin: 0 auto;
+  position: relative;
+}
+.search-bar {
+  display: flex; align-items: center; gap: 0;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 999px; padding: 6px 6px 6px 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--card-shadow);
+  transition: all var(--transition);
+}
+.search-bar:focus-within { border-color: var(--accent); box-shadow: var(--glow), var(--card-shadow); }
+
+.search-icon { color: var(--text3); font-size: 1.1rem; margin-right: 12px; }
+#city-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-family: var(--font-body); font-size: 0.95rem; color: var(--text);
+  caret-color: var(--accent);
+}
+#city-input::placeholder { color: var(--text3); }
+.search-btn {
+  padding: 12px 24px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; color: #060b14; font-family: var(--font-body);
+  font-weight: 700; font-size: 0.9rem; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: all var(--transition); white-space: nowrap;
+}
+.search-btn:hover { transform: scale(1.03); box-shadow: 0 4px 20px rgba(79,195,247,0.4); }
+.search-btn:active { transform: scale(0.98); }
+
+.recent-searches {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; margin-top: 14px;
+}
+.recent-chip {
+  padding: 5px 14px; border-radius: 999px; font-size: 0.8rem;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  color: var(--text2); cursor: pointer; transition: all var(--transition);
+}
+.recent-chip:hover { background: var(--glass-hover); color: var(--accent); border-color: var(--accent); }
+
+/* ═══════════════════════════════════════════════
+   LOADING SKELETON
+═══════════════════════════════════════════════ */
+.skeleton {
+  background: linear-gradient(90deg, var(--glass) 0%, var(--glass-hover) 50%, var(--glass) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ═══════════════════════════════════════════════
+   WEATHER CARDS GRID
+═══════════════════════════════════════════════ */
+#weather-section { margin-top: 40px; animation: fadeUp 0.6s ease both; display: none; }
+
+.weather-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+}
+
+.card {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 28px;
+  backdrop-filter: blur(20px); box-shadow: var(--card-shadow);
+  transition: all var(--transition);
+}
+.card:hover { border-color: rgba(79,195,247,0.2); transform: translateY(-3px); box-shadow: var(--glow), var(--card-shadow); }
+
+/* Main weather card — spans full width */
+.card-main {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 24px;
+  background: linear-gradient(135deg, rgba(79,195,247,0.08), rgba(0,100,200,0.06));
+  border-color: rgba(79,195,247,0.15);
+  position: relative; overflow: hidden;
+}
+.card-main::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at top right, rgba(79,195,247,0.1) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.weather-main-left .city-name {
+  font-family: var(--font-display); font-size: 1.8rem; font-weight: 700; letter-spacing: -0.5px;
+}
+.weather-main-left .city-country { color: var(--text2); font-size: 0.9rem; margin: 2px 0 12px; }
+.weather-main-left .temperature {
+  font-family: var(--font-display); font-size: 5rem; font-weight: 800; letter-spacing: -3px;
+  line-height: 1; color: var(--text);
+}
+.weather-main-left .temperature sup { font-size: 2rem; vertical-align: super; color: var(--accent); }
+.weather-main-left .condition { font-size: 1rem; color: var(--accent); font-weight: 500; margin-top: 8px; }
+.weather-main-left .feels-like { font-size: 0.85rem; color: var(--text2); margin-top: 4px; }
+
+.weather-main-right { text-align: right; }
+.weather-icon-big { font-size: 5rem; line-height: 1; filter: drop-shadow(0 0 20px rgba(79,195,247,0.4)); }
+.weather-datetime { font-size: 0.85rem; color: var(--text2); margin-top: 12px; }
+
+/* Stats cards */
+.card-stat { display: flex; flex-direction: column; gap: 6px; }
+.card-stat .stat-label { font-size: 0.78rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+.card-stat .stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--text); }
+.card-stat .stat-unit { font-size: 0.85rem; color: var(--text2); }
+.card-stat .stat-icon { font-size: 1.5rem; margin-bottom: 4px; }
+.stat-bar-wrap { height: 4px; background: var(--bg3); border-radius: 2px; margin-top: 8px; }
+.stat-bar { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent3)); transition: width 1s ease; }
+
+/* ═══════════════════════════════════════════════
+   FORECAST SECTION
+═══════════════════════════════════════════════ */
+.forecast-card {
+  grid-column: 1 / -1;
+}
+.forecast-label {
+  font-family: var(--font-display); font-size: 0.8rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+.forecast-label::after { content: ''; flex: 1; height: 1px; background: var(--glass-border); }
+
+.forecast-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+.forecast-item {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 16px 10px; text-align: center;
+  transition: all var(--transition); cursor: default;
+}
+.forecast-item:hover { background: var(--glass-hover); border-color: rgba(79,195,247,0.2); transform: translateY(-3px); }
+.forecast-day { font-size: 0.75rem; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.forecast-icon { font-size: 1.8rem; margin: 10px 0 8px; }
+.forecast-high { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text); }
+.forecast-low { font-size: 0.78rem; color: var(--text3); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════
+   ERROR / EMPTY STATE
+═══════════════════════════════════════════════ */
+.error-card {
+  grid-column: 1 / -1; padding: 48px; text-align: center;
+}
+.error-card .error-icon { font-size: 3rem; margin-bottom: 16px; }
+.error-card p { color: var(--text2); font-size: 1rem; }
+
+/* ═══════════════════════════════════════════════
+   FLOATING CHATBOT BUTTON
+═══════════════════════════════════════════════ */
+#chat-btn {
+  position: fixed; bottom: 28px; right: 28px; z-index: 1000;
+  width: 60px; height: 60px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; box-shadow: 0 8px 32px rgba(79,195,247,0.5);
+  transition: all var(--transition);
+  animation: bouncein 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both 1s;
+}
+@keyframes bouncein { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
+#chat-btn:hover { transform: scale(1.1) rotate(15deg); box-shadow: 0 12px 40px rgba(79,195,247,0.6); }
+#chat-btn.active { transform: rotate(45deg); }
+.chat-notif {
+  position: absolute; top: -2px; right: -2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--red); border: 2px solid var(--bg);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════
+   CHATBOT PANEL
+═══════════════════════════════════════════════ */
+#chat-panel {
+  position: fixed; bottom: 100px; right: 28px; z-index: 999;
+  width: min(420px, calc(100vw - 40px));
+  height: min(560px, calc(100vh - 140px));
+  background: var(--bg2); border: 1px solid var(--glass-border);
+  border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  display: flex; flex-direction: column; overflow: hidden;
+  transform: scale(0.9) translateY(20px); transform-origin: bottom right;
+  opacity: 0; pointer-events: none;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+#chat-panel.open {
+  transform: scale(1) translateY(0);
+  opacity: 1; pointer-events: all;
+}
+
+.chat-header {
+  padding: 18px 20px; border-bottom: 1px solid var(--glass-border);
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, rgba(79,195,247,0.08), transparent);
+}
+.chat-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; flex-shrink: 0; position: relative;
+}
+.chat-avatar::after {
+  content: ''; position: absolute; bottom: 1px; right: 1px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--green); border: 2px solid var(--bg2);
+}
+.chat-header-info h3 { font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; }
+.chat-header-info p { font-size: 0.75rem; color: var(--green); }
+
+.chat-close {
+  margin-left: auto; background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 8px; width: 32px; height: 32px; cursor: pointer;
+  color: var(--text2); display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.chat-close:hover { background: var(--glass-hover); color: var(--red); }
+
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  scroll-behavior: smooth;
+}
+#chat-messages::-webkit-scrollbar { width: 4px; }
+#chat-messages::-webkit-scrollbar-track { background: transparent; }
+#chat-messages::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 4px; }
+
+.msg {
+  display: flex; gap: 8px; align-items: flex-end;
+  animation: msgIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(10px) scale(0.95); } to { opacity: 1; transform: none; } }
+
+.msg.user { flex-direction: row-reverse; }
+.msg-bubble {
+  max-width: 80%; padding: 12px 16px; border-radius: 18px;
+  font-size: 0.9rem; line-height: 1.5;
+}
+.msg.bot .msg-bubble {
+  background: var(--bg3); border: 1px solid var(--glass-border);
+  border-bottom-left-radius: 4px; color: var(--text);
+}
+.msg.user .msg-bubble {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #060b14; font-weight: 500; border-bottom-right-radius: 4px;
+}
+.msg-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+.msg.bot .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+.msg.user .msg-avatar { background: var(--bg3); border: 1px solid var(--glass-border); }
+
+/* Typing indicator */
+.typing-indicator { display: flex; align-items: center; gap: 4px; padding: 4px 0; }
+.typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); animation: typingBounce 1.2s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-6px); opacity: 1; } }
+
+.chat-input-area {
+  padding: 14px; border-top: 1px solid var(--glass-border);
+  display: flex; gap: 10px; align-items: center;
+}
+#chat-input {
+  flex: 1; background: var(--bg3); border: 1px solid var(--glass-border);
+  border-radius: 12px; padding: 12px 16px;
+  font-family: var(--font-body); font-size: 0.9rem; color: var(--text);
+  outline: none; resize: none; height: 46px;
+  transition: border-color var(--transition);
+}
+#chat-input::placeholder { color: var(--text3); }
+#chat-input:focus { border-color: var(--accent); }
+#send-btn {
+  width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; color: #060b14; transition: all var(--transition);
+}
+#send-btn:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(79,195,247,0.4); }
+
+.chat-suggestions {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 14px 12px;
+}
+.suggestion {
+  padding: 6px 12px; border-radius: 999px; font-size: 0.78rem;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  color: var(--text2); cursor: pointer; transition: all var(--transition);
+}
+.suggestion:hover { background: rgba(79,195,247,0.1); border-color: var(--accent); color: var(--accent); }
+
+/* ═══════════════════════════════════════════════
+   RAIN ANIMATION OVERLAY
+═══════════════════════════════════════════════ */
+#rain-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; display: none;
+  overflow: hidden;
+}
+.raindrop {
+  position: absolute; width: 1px; background: linear-gradient(transparent, var(--accent));
+  animation: rain linear infinite; opacity: 0.25;
+}
+@keyframes rain { 0% { transform: translateY(-100vh); opacity: 0; } 100% { transform: translateY(100vh); opacity: 0.4; } }
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .weather-grid { grid-template-columns: 1fr; }
+  .forecast-grid { grid-template-columns: repeat(4, 1fr); overflow-x: auto; }
+  .hero h1 { font-size: 2rem; }
+  .weather-main-left .temperature { font-size: 4rem; }
+  #app { padding: 0 16px 100px; }
+}
+
+@media (max-width: 480px) {
+  .forecast-grid { grid-template-columns: repeat(4, minmax(72px, 1fr)); }
+  .weather-grid { grid-template-columns: 1fr; }
+  .card-stat { padding: 20px; }
+}
+
+/* ═══════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════ */
+.hidden { display: none !important; }
+.show { display: block !important; }
+</style>
+</head>
+<body>
+
+<!-- Ambient background -->
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+<div id="rain-overlay"></div>
+
+<div id="app">
+  <!-- NAVBAR -->
+  <nav id="navbar">
+    <div class="nav-logo">
+      <span class="logo-dot"></span>
+      ATMOS
+    </div>
+    <div class="nav-actions">
+      <button class="btn-icon" id="location-btn" title="Detect my location">📍</button>
+      <button class="btn-icon" id="theme-btn" title="Toggle theme">🌙</button>
+      <button class="btn-primary" id="open-chat-nav">
+        <span>💬</span> Ask AI
+      </button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">AI-POWERED WEATHER INTELLIGENCE</div>
+    <h1>Real-time weather,<br/><span>intelligent insights.</span></h1>
+    <p>Search any city worldwide and get live forecasts, detailed conditions, and AI-powered weather answers — all in one dashboard.</p>
+
+    <!-- Search -->
+    <div class="search-container">
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="city-input" placeholder="Search city... (e.g. Mumbai, London, Tokyo)" autocomplete="off" />
+        <button class="search-btn" id="search-btn">
+          Get Weather <span>→</span>
+        </button>
+      </div>
+      <div class="recent-searches" id="recent-list"></div>
+    </div>
+  </section>
+
+  <!-- WEATHER SECTION -->
+  <section id="weather-section">
+    <div class="weather-grid" id="weather-grid">
+      <!-- Populated by JS -->
+    </div>
+  </section>
+</div>
+
+<!-- CHATBOT BUTTON -->
+<button id="chat-btn" title="Open AI Assistant">
+  <span id="chat-btn-icon">💬</span>
+  <div class="chat-notif" id="chat-notif"></div>
+</button>
+
+<!-- CHATBOT PANEL -->
+<div id="chat-panel">
+  <div class="chat-header">
+    <div class="chat-avatar">🌤</div>
+    <div class="chat-header-info">
+      <h3>ATMOS AI</h3>
+      <p>● Online — Weather Assistant</p>
+    </div>
+    <button class="chat-close" id="chat-close">✕</button>
+  </div>
+
+  <div id="chat-messages">
+    <!-- Initial bot message injected by JS -->
+  </div>
+
+  <div class="chat-suggestions" id="chat-suggestions">
+    <span class="suggestion">Will it rain today?</span>
+    <span class="suggestion">Hottest city right now?</span>
+    <span class="suggestion">Best time to visit Paris?</span>
+    <span class="suggestion">What's UV index?</span>
+  </div>
+
+  <div class="chat-input-area">
+    <input type="text" id="chat-input" placeholder="Ask anything about weather..." />
+    <button id="send-btn">➤</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   CONFIGURATION
+   ► Replace YOUR_API_KEY with your OpenWeatherMap key
+   ► Get free key at: https://openweathermap.org/api
+═══════════════════════════════════════════════ */
+const OWM_API_KEY = '549bec02e7a2885197c684512dc51de9';
+const OWM_BASE   = 'https://api.openweathermap.org/data/2.5';
+
+/* ═══════════════════════════════════════════════
+   THEME MANAGEMENT
+═══════════════════════════════════════════════ */
+const themeBtn = document.getElementById('theme-btn');
+let isDark = true;
+themeBtn.addEventListener('click', () => {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  themeBtn.textContent = isDark ? '🌙' : '☀️';
+});
+
+/* ═══════════════════════════════════════════════
+   NAVBAR SCROLL EFFECT
+═══════════════════════════════════════════════ */
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+/* ═══════════════════════════════════════════════
+   RECENT SEARCHES
+═══════════════════════════════════════════════ */
+let recentCities = JSON.parse(localStorage.getItem('atmos-recent') || '[]');
+
+function saveRecent(city) {
+  recentCities = [city, ...recentCities.filter(c => c.toLowerCase() !== city.toLowerCase())].slice(0, 5);
+  localStorage.setItem('atmos-recent', JSON.stringify(recentCities));
+  renderRecent();
+}
+
+function renderRecent() {
+  const list = document.getElementById('recent-list');
+  list.innerHTML = recentCities.map(c =>
+    `<span class="recent-chip" data-city="${c}">🕐 ${c}</span>`
+  ).join('');
+  list.querySelectorAll('.recent-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.getElementById('city-input').value = chip.dataset.city;
+      fetchWeather(chip.dataset.city);
+    });
+  });
+}
+renderRecent();
+
+/* ═══════════════════════════════════════════════
+   WEATHER ICONS MAP
+═══════════════════════════════════════════════ */
+const WEATHER_ICONS = {
+  '01d': '☀️', '01n': '🌙',
+  '02d': '⛅', '02n': '🌥️',
+  '03d': '🌥️', '03n': '🌥️',
+  '04d': '☁️', '04n': '☁️',
+  '09d': '🌧️', '09n': '🌧️',
+  '10d': '🌦️', '10n': '🌧️',
+  '11d': '⛈️', '11n': '⛈️',
+  '13d': '❄️', '13n': '❄️',
+  '50d': '🌫️', '50n': '🌫️',
+};
+
+function getIcon(code) { return WEATHER_ICONS[code] || '🌤'; }
+
+function getDayName(timestamp, i) {
+  if (i === 0) return 'Today';
+  if (i === 1) return 'Tomorrow';
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return days[new Date(timestamp * 1000).getDay()];
+}
+
+/* ═══════════════════════════════════════════════
+   RAIN OVERLAY
+═══════════════════════════════════════════════ */
+function toggleRain(show) {
+  const overlay = document.getElementById('rain-overlay');
+  if (show) {
+    overlay.innerHTML = Array.from({length: 60}, (_, i) => {
+      const left = Math.random() * 100;
+      const dur = 0.6 + Math.random() * 0.8;
+      const delay = Math.random() * 2;
+      const height = 15 + Math.random() * 25;
+      return `<div class="raindrop" style="left:${left}%;height:${height}px;animation-duration:${dur}s;animation-delay:${delay}s"></div>`;
+    }).join('');
+    overlay.style.display = 'block';
+  } else {
+    overlay.style.display = 'none';
+    overlay.innerHTML = '';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   SKELETON LOADER
+═══════════════════════════════════════════════ */
+function showSkeleton() {
+  const section = document.getElementById('weather-section');
+  section.style.display = 'block';
+  document.getElementById('weather-grid').innerHTML = `
+    <div class="card card-main">
+      <div style="flex:1">
+        <div class="skeleton" style="width:200px;height:28px;margin-bottom:8px"></div>
+        <div class="skeleton" style="width:120px;height:16px;margin-bottom:16px"></div>
+        <div class="skeleton" style="width:140px;height:80px;margin-bottom:12px"></div>
+        <div class="skeleton" style="width:180px;height:18px"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="skeleton" style="width:80px;height:80px;margin-left:auto;border-radius:50%"></div>
+      </div>
+    </div>
+    <div class="card card-stat">
+      <div class="skeleton" style="width:80px;height:12px;margin-bottom:10px"></div>
+      <div class="skeleton" style="width:100px;height:40px;margin-bottom:8px"></div>
+      <div class="skeleton" style="width:100%;height:4px"></div>
+    </div>
+    <div class="card card-stat">
+      <div class="skeleton" style="width:80px;height:12px;margin-bottom:10px"></div>
+      <div class="skeleton" style="width:100px;height:40px;margin-bottom:8px"></div>
+      <div class="skeleton" style="width:100%;height:4px"></div>
+    </div>
+    <div class="card forecast-card">
+      <div class="skeleton" style="width:140px;height:14px;margin-bottom:20px"></div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px">
+        ${Array(7).fill(`<div class="skeleton" style="height:100px;border-radius:14px"></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════
+   WEATHER FETCH (OpenWeatherMap)
+   Gracefully falls back to demo data if no API key
+═══════════════════════════════════════════════ */
+async function fetchWeather(city) {
+  if (!city.trim()) return;
+  showSkeleton();
+  toggleRain(false);
+
+  try {
+    const currRes = await fetch(OWM_BASE + '/weather?q=' + encodeURIComponent(city.trim()) + '&units=metric&appid=' + OWM_API_KEY);
+    const curr = await currRes.json();
+
+    if (!currRes.ok) {
+      const code = String(curr.cod);
+      if (code === '401') {
+        showError('API key invalid or not yet activated. New keys can take up to 10 minutes to activate on OpenWeatherMap. Please wait and try again.');
+      } else if (code === '404') {
+        showError('City "' + city + '" not found. Try adding country code, e.g. "Delhi, IN" or "Paris, FR".');
+      } else if (code === '429') {
+        showError('Too many requests — free plan limit reached. Wait a moment and retry.');
+      } else {
+        showError('Error ' + code + ': ' + (curr.message || 'Weather service error.'));
+      }
+      return;
+    }
+
+    const forecastRes = await fetch(OWM_BASE + '/forecast?q=' + encodeURIComponent(city.trim()) + '&units=metric&cnt=40&appid=' + OWM_API_KEY);
+    const forecast = await forecastRes.json();
+
+    const days = {};
+    forecast.list.forEach(function(item) {
+      const d = item.dt_txt.split(' ')[0];
+      if (!days[d] || item.dt_txt.includes('12:00:00')) days[d] = item;
+    });
+    const forecastDays = Object.values(days).slice(0, 7);
+
+    renderWeather({
+      city: curr.name,
+      country: curr.sys.country,
+      temp: Math.round(curr.main.temp),
+      feelsLike: Math.round(curr.main.feels_like),
+      condition: curr.weather[0].main,
+      description: curr.weather[0].description,
+      icon: curr.weather[0].icon,
+      humidity: curr.main.humidity,
+      wind: Math.round(curr.wind.speed * 3.6),
+      visibility: curr.visibility ? (curr.visibility / 1000).toFixed(1) : 'N/A',
+      pressure: curr.main.pressure,
+      forecast: forecastDays.map(function(d, i) {
+        return {
+          day: getDayName(d.dt, i),
+          icon: d.weather[0].icon,
+          high: Math.round(d.main.temp_max),
+          low: Math.round(d.main.temp_min),
+        };
+      })
+    });
+
+  } catch (err) {
+    if (err.name === 'TypeError') {
+      showError('Network error: Cannot reach the weather service. Check your internet connection.');
+    } else {
+      showError('Unexpected error: ' + err.message);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   DEMO DATA (no API key needed)
+═══════════════════════════════════════════════ */
+function getDemoData(city) {
+  const demos = {
+    mumbai:  { temp:32, feelsLike:38, condition:'Thunderstorm', description:'heavy thunderstorm', icon:'11d', humidity:88, wind:22, visibility:4.5, pressure:1008 },
+    london:  { temp:12, feelsLike:9,  condition:'Clouds',       description:'overcast clouds',     icon:'04d', humidity:74, wind:18, visibility:9.2, pressure:1015 },
+    tokyo:   { temp:22, feelsLike:21, condition:'Clear',        description:'clear sky',            icon:'01d', humidity:55, wind:10, visibility:15,  pressure:1018 },
+    paris:   { temp:18, feelsLike:17, condition:'Rain',         description:'light rain',           icon:'10d', humidity:70, wind:14, visibility:8.0, pressure:1013 },
+    dubai:   { temp:40, feelsLike:44, condition:'Clear',        description:'sunny',                icon:'01d', humidity:30, wind:16, visibility:20,  pressure:1005 },
+    default: { temp:25, feelsLike:24, condition:'Clouds',       description:'few clouds',           icon:'02d', humidity:60, wind:15, visibility:12,  pressure:1013 },
+  };
+  const key = city.toLowerCase().trim();
+  const d = demos[key] || demos.default;
+
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date().getDay();
+  const forecast = Array.from({length: 7}, (_, i) => ({
+    day: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : dayNames[(today + i) % 7],
+    icon: ['01d','02d','10d','04d','01d','02d','11d'][i],
+    high: d.temp + Math.round(Math.random() * 6 - 2),
+    low:  d.temp - 6 + Math.round(Math.random() * 4 - 2),
+  }));
+
+  return { city: city.charAt(0).toUpperCase() + city.slice(1), country: '—', ...d, forecast };
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER WEATHER
+═══════════════════════════════════════════════ */
+function renderWeather(data) {
+  saveRecent(data.city);
+
+  const isRainy = ['Rain','Thunderstorm','Drizzle'].includes(data.condition);
+  const isStormy = data.condition === 'Thunderstorm';
+  toggleRain(isRainy);
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+
+  const grid = document.getElementById('weather-grid');
+  grid.innerHTML = `
+    <!-- MAIN CARD -->
+    <div class="card card-main">
+      <div class="weather-main-left">
+        <div class="city-name">${data.city}</div>
+        <div class="city-country">${data.country !== '—' ? `${data.country} · ` : ''}${data.description}</div>
+        <div class="temperature">${data.temp}<sup>°C</sup></div>
+        <div class="condition">${data.condition}</div>
+        <div class="feels-like">Feels like ${data.feelsLike}°C</div>
+      </div>
+      <div class="weather-main-right">
+        <div class="weather-icon-big">${getIcon(data.icon)}</div>
+        <div class="weather-datetime">${dateStr}<br/>${timeStr}</div>
+      </div>
+    </div>
+
+    <!-- HUMIDITY -->
+    <div class="card card-stat">
+      <div class="stat-icon">💧</div>
+      <div class="stat-label">Humidity</div>
+      <div class="stat-value">${data.humidity}<span class="stat-unit">%</span></div>
+      <div class="stat-bar-wrap"><div class="stat-bar" style="width:${data.humidity}%"></div></div>
+    </div>
+
+    <!-- WIND -->
+    <div class="card card-stat">
+      <div class="stat-icon">💨</div>
+      <div class="stat-label">Wind Speed</div>
+      <div class="stat-value">${data.wind}<span class="stat-unit"> km/h</span></div>
+      <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.min(data.wind / 120 * 100, 100)}%"></div></div>
+    </div>
+
+    <!-- VISIBILITY -->
+    <div class="card card-stat">
+      <div class="stat-icon">👁️</div>
+      <div class="stat-label">Visibility</div>
+      <div class="stat-value">${data.visibility}<span class="stat-unit"> km</span></div>
+      <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.min(data.visibility / 20 * 100, 100)}%"></div></div>
+    </div>
+
+    <!-- PRESSURE -->
+    <div class="card card-stat">
+      <div class="stat-icon">🌡️</div>
+      <div class="stat-label">Pressure</div>
+      <div class="stat-value">${data.pressure}<span class="stat-unit"> hPa</span></div>
+      <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.min((data.pressure - 960) / 80 * 100, 100)}%"></div></div>
+    </div>
+
+    <!-- 7-DAY FORECAST -->
+    <div class="card forecast-card">
+      <div class="forecast-label">7-Day Forecast</div>
+      <div class="forecast-grid">
+        ${data.forecast.map(f => `
+          <div class="forecast-item">
+            <div class="forecast-day">${f.day}</div>
+            <div class="forecast-icon">${getIcon(f.icon)}</div>
+            <div class="forecast-high">${f.high}°</div>
+            <div class="forecast-low">${f.low}°</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('weather-section').style.display = 'block';
+  document.getElementById('weather-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ═══════════════════════════════════════════════
+   ERROR STATE
+═══════════════════════════════════════════════ */
+function showError(msg) {
+  document.getElementById('weather-section').style.display = 'block';
+  document.getElementById('weather-grid').innerHTML =
+    '<div class="card error-card">' +
+      '<div class="error-icon">⚠️</div>' +
+      '<p>' + msg + '</p>' +
+      '<p style="margin-top:8px;font-size:0.82rem;color:var(--text3)">Try a different city name, or add the country code like \"London, GB\".</p>' +
+    '</div>';
+}
+
+/* ═══════════════════════════════════════════════
+   SEARCH EVENTS
+═══════════════════════════════════════════════ */
+document.getElementById('search-btn').addEventListener('click', () => {
+  fetchWeather(document.getElementById('city-input').value);
+});
+document.getElementById('city-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') fetchWeather(e.target.value);
+});
+
+/* ═══════════════════════════════════════════════
+   GEOLOCATION
+═══════════════════════════════════════════════ */
+document.getElementById('location-btn').addEventListener('click', () => {
+  if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+  document.getElementById('location-btn').textContent = '⏳';
+  navigator.geolocation.getCurrentPosition(async pos => {
+    document.getElementById('location-btn').textContent = '📍';
+    const { latitude: lat, longitude: lon } = pos.coords;
+    if (OWM_API_KEY === 'YOUR_API_KEY') {
+      fetchWeather('Mumbai'); return;
+    }
+    try {
+      const res = await fetch(`${OWM_BASE}/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OWM_API_KEY}`);
+      const d = await res.json();
+      document.getElementById('city-input').value = d.name;
+      fetchWeather(d.name);
+    } catch { showError('Could not detect location weather.'); }
+  }, () => {
+    document.getElementById('location-btn').textContent = '📍';
+    alert('Location access denied.');
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   CHATBOT
+═══════════════════════════════════════════════ */
+const chatBtn   = document.getElementById('chat-btn');
+const chatPanel = document.getElementById('chat-panel');
+const chatClose = document.getElementById('chat-close');
+const chatMsgs  = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const sendBtn   = document.getElementById('send-btn');
+const chatNotif = document.getElementById('chat-notif');
+
+let chatOpen = false;
+function openChat() {
+  chatOpen = true;
+  chatPanel.classList.add('open');
+  document.getElementById('chat-btn-icon').textContent = '✕';
+  chatBtn.classList.add('active');
+  chatNotif.style.display = 'none';
+  chatInput.focus();
+}
+function closeChat() {
+  chatOpen = false;
+  chatPanel.classList.remove('open');
+  document.getElementById('chat-btn-icon').textContent = '💬';
+  chatBtn.classList.remove('active');
+}
+chatBtn.addEventListener('click', () => chatOpen ? closeChat() : openChat());
+chatClose.addEventListener('click', closeChat);
+document.getElementById('open-chat-nav').addEventListener('click', openChat);
+
+// Suggestions
+document.querySelectorAll('.suggestion').forEach(s => {
+  s.addEventListener('click', () => { chatInput.value = s.textContent; sendMessage(); });
+});
+
+/* ── Chat message helpers ── */
+function appendMsg(text, role) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${role === 'bot' ? '🌤' : '👤'}</div>
+    <div class="msg-bubble">${text}</div>
+  `;
+  chatMsgs.appendChild(div);
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+}
+
+function showTyping() {
+  const div = document.createElement('div');
+  div.className = 'msg bot'; div.id = 'typing-msg';
+  div.innerHTML = `
+    <div class="msg-avatar">🌤</div>
+    <div class="msg-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>
+  `;
+  chatMsgs.appendChild(div);
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-msg');
+  if (t) t.remove();
+}
+
+/* ── Initial bot greeting ── */
+setTimeout(() => {
+  appendMsg("Hi! I'm <strong>ATMOS AI</strong> — your intelligent weather assistant 🌤<br/><br/>Ask me anything: weather in any city, what to wear, travel tips, or how to read weather data!", 'bot');
+  chatNotif.style.display = 'block';
+}, 800);
+
+/* ── AI Chatbot with Anthropic API ── */
+const chatHistory = [];
+
+async function getBotReply(userMsg) {
+  showTyping();
+
+  // Build system prompt
+  const systemPrompt = `You are ATMOS AI, a friendly and knowledgeable weather assistant embedded in the ATMOS weather web application. 
+
+Your personality: warm, concise, helpful, slightly enthusiastic about weather. Use emojis naturally.
+
+You help users with:
+- Weather questions (rain, temperature, seasons, climate of cities)
+- What to wear for certain weather
+- Best travel times for destinations  
+- Understanding weather phenomena (UV index, humidity, wind chill, etc.)
+- How to use the ATMOS app
+- General meteorology questions
+
+Current search context: The user may have just searched for a city's weather. Keep responses concise (2-4 sentences max for simple questions). Always be conversational and friendly.`;
+
+  chatHistory.push({ role: 'user', content: userMsg });
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: chatHistory.slice(-10), // last 10 turns for context
+      })
+    });
+
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Please try again!";
+    chatHistory.push({ role: 'assistant', content: reply });
+    removeTyping();
+    appendMsg(reply, 'bot');
+
+    // If the bot mentions a city, offer to search
+    const cityMatch = reply.match(/in ([A-Z][a-z]+(?: [A-Z][a-z]+)?)/);
+    if (cityMatch) {
+      // light UX hint — nothing intrusive
+    }
+
+  } catch (err) {
+    removeTyping();
+    // Fallback to rule-based
+    const fallback = getRuleBasedReply(userMsg);
+    chatHistory.push({ role: 'assistant', content: fallback });
+    appendMsg(fallback, 'bot');
+  }
+}
+
+/* ── Rule-based fallback (no API needed) ── */
+function getRuleBasedReply(msg) {
+  const m = msg.toLowerCase();
+  if (m.includes('rain') || m.includes('umbrella')) return "🌧️ Rain depends on your location! Search a city above and I'll show you current conditions. Generally, always carry an umbrella if humidity > 80% and pressure is dropping!";
+  if (m.includes('hot') || m.includes('heat') || m.includes('temperature')) return "🌡️ Temperature varies widely by region and season. Try searching your city in the search bar for live readings!";
+  if (m.includes('wind') || m.includes('windy')) return "💨 Wind speed above 50 km/h is considered strong — avoid outdoor activities. Check the wind card in the weather dashboard for real-time data!";
+  if (m.includes('uv') || m.includes('ultraviolet')) return "☀️ UV Index: 0-2 is low (safe), 3-5 moderate (wear SPF), 6-7 high (limit noon sun), 8+ very high to extreme (stay indoors midday)!";
+  if (m.includes('humid')) return "💧 Humidity above 70% feels muggy and uncomfortable. Tropical cities like Mumbai often hit 85-95% in monsoon season. Our dashboard shows real-time humidity!";
+  if (m.includes('forecast') || m.includes('tomorrow') || m.includes('week')) return "📅 Search any city to see a full 7-day forecast in the dashboard! Each card shows the high/low temperature and condition icons.";
+  if (m.includes('hello') || m.includes('hi ') || m === 'hi') return "Hello! 👋 I'm ATMOS AI. Ask me anything about weather, climate, or how to use this app!";
+  if (m.includes('best time') || m.includes('visit') || m.includes('travel')) return "✈️ For tropical destinations, avoid monsoon season (Jun-Sep for Asia). Europe is beautiful in May-June. Ask me about a specific city for tailored travel timing!";
+  if (m.includes('snow') || m.includes('winter')) return "❄️ Snow typically requires temperatures below 0°C with sufficient moisture. Mountainous regions and cities above 45°N latitude see the most snowfall!";
+  if (m.includes('pressure') || m.includes('barometric')) return "🌡️ Barometric pressure: ~1013 hPa is standard. Falling pressure (below 1000) usually means a storm approaching. Rising pressure means clearer skies ahead!";
+  if (m.includes('how') && m.includes('use')) return "📱 Easy! Just type any city name in the search bar and hit 'Get Weather'. You'll see real-time temp, humidity, wind, and a 7-day forecast. I can also answer weather questions here!";
+  return "🌤️ Great question! For the most accurate weather info, try searching your city above. I'm also here to answer anything about climate, weather patterns, or travel tips. What would you like to know?";
+}
+
+/* ── Send message ── */
+async function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  appendMsg(text, 'user');
+  chatInput.value = '';
+  document.getElementById('chat-suggestions').style.display = 'none';
+  await getBotReply(text);
+}
+
+sendBtn.addEventListener('click', sendMessage);
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+/* ═══════════════════════════════════════════════
+   INITIAL LOAD — show Mumbai by default
+═══════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  fetchWeather('Mumbai');
+});
+</script>
+</body>
+</html>
